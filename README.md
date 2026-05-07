@@ -1,5 +1,7 @@
 # CGx's pi-emote
 
+> **Currently looking to expand the emotes gallery!** If you have an emote set you'd like to submit, please make a PR!
+
 Animated pixel-art emote that lives in the top-right corner of your pi TUI session. Reacts to what the agent is doing — thinking, talking, reading, writing, using tools, etc.
 
 ![pi-emote demo](pi-emote-demo.gif)
@@ -29,28 +31,66 @@ pi install git:github.com/cgxeiji/pi-emote
 
 ## Config
 
-`config.json` in the extension root:
+Drop a `config.json` in one of these paths (highest priority wins):
+
+- `~/.pi/agent/extensions/pi-emote/config.json` — your global prefs
+- `.pi/extensions/pi-emote/config.json` — project override
+
+Only include what you want to change:
 
 ```json
 {
-  "enabled": true,
-  "size": 8,
-  "readingSpeed": 4,
-  "hideBelow": 80,
-  "holdDuration": { "hi": 2000, "success": 1200, "failure": 1200 },
-  "blinkInterval": [3000, 6000],
-  "talkTickMs": 120,
-  "cycleMs": 500
+  "size": 12,
+  "emotes": [
+    { "model": "*", "emote-set": "default" },
+    { "model": "*claude*", "emote-set": "my-avatar" }
+  ]
 }
 ```
 
-- `size` — image width/height in terminal cells
-- `readingSpeed` — words/sec, controls how long talk mouth stays open after tokens stop
-- `hideBelow` — hide emote when terminal is narrower than this many columns
+See `config.json` in the extension root for all the fields (or ask your agent).
 
-## Custom emotes
+## Custom Emotes
 
-Drop PNGs into `emotes/<state>/`. The extension auto-discovers frames per directory. See `emotes/emotes.json` for per-state config (default frames, blink frames, talk mouth weights).
+Emote sets live in `emotes/<set-name>/` with PNG frames per state:
+
+```
+emotes/my-avatar/
+├── idle/*.png
+├── think/*.png
+├── talk/*.png
+├── read/*.png
+├── write/*.png
+├── tool/*.png
+└── ...          # hi, success, failure, compact
+```
+
+Not all states are required. Missing ones just won't animate.
+
+### Where to put them
+
+pi-emote searches in order:
+
+1. `.pi/extensions/pi-emote/emotes/<name>/` (project)
+2. `~/.pi/agent/extensions/pi-emote/emotes/<name>/` (user)
+3. Extension built-in → falls back to `default`
+
+### Map models to sets
+
+Glob patterns against model ID, last match wins:
+
+```json
+{
+  "emotes": [
+    { "model": "*", "emote-set": "default" },
+    { "model": "*claude*", "emote-set": "my-avatar" },
+    { "model": "*haiku*", "emote-set": "haiku-avatar" }
+  ]
+}
+```
+
+In this example, `claude` models use `my-avatar`, but `haiku` ones use `haiku-avatar`.
+See `emotes/default/emotes.json` for per-set frame config (blink frames, talk weights).
 
 ## License
 
