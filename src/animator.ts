@@ -1,24 +1,9 @@
-import { getCapabilities, getImageDimensions, renderImage, allocateImageId, deleteKittyImage } from "@mariozechner/pi-tui";
-import type { TUI } from "@mariozechner/pi-tui";
-import type { EmoteState, Config, EmotesConfig, FrameSet } from "./types.js";
+import type { TUI } from "@earendil-works/pi-tui";
+import type { EmoteState, Config, EmotesConfig } from "./types.js";
+import type { Renderer, RenderedFrame } from "./renderer.js";
 import { log } from "./log.js";
 
 // --- Helpers ---
-
-function randomPick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
-}
-
-function weightedRandomPick(weights: Record<string, number>): string {
-  const entries = Object.entries(weights);
-  const total = entries.reduce((sum, [, w]) => sum + w, 0);
-  let r = Math.random() * total;
-  for (const [file, weight] of entries) {
-    r -= weight;
-    if (r <= 0) return file;
-  }
-  return entries[entries.length - 1]![0];
-}
 
 function randomInRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
@@ -27,20 +12,13 @@ function randomInRange(min: number, max: number): number {
 // --- Animator ---
 
 export class Animator {
-  // Image rendering state (read by widget)
-  imageSequence: string | null = null;
-  imageRows = 0;
-  readonly imageId: number;
-
   // State machine
   currentState: EmoteState = "idle";
 
-  // References
-  tuiRef: TUI | null = null;
+  // Renderer
+  private renderer: Renderer;
   private config: Config;
   private emotesConfig: EmotesConfig = {};
-  private frameMap: Map<EmoteState, FrameSet> = new Map();
-  private lastShownBase64: string | null = null;
 
   // Timers
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
@@ -55,9 +33,6 @@ export class Animator {
   private cycleIndex = 0;
   private cycleDirection = 1;
 
-  // Think state
-  private thinkBaseFrame: string | null = null;
-
   // Hold state
   private holdNextState: EmoteState = "idle";
 
@@ -67,100 +42,42 @@ export class Animator {
   private lastTokenTime = 0;
   private talkMouthClosed = false;
 
-  constructor(config: Config) {
+  constructor(config: Config, renderer: Renderer) {
     this.config = config;
-    this.imageId = allocateImageId();
+    this.renderer = renderer;
   }
 
   updateConfig(config: Config) {
     this.config = config;
   }
 
-  setEmoteSet(emotesConfig: EmotesConfig, frameMap: Map<EmoteState, FrameSet>) {
+  setRenderer(renderer: Renderer) {
+    this.renderer = renderer;
+  }
+
+  setTui(tui: TUI | null) {
+    this.renderer.setTui(tui);
+  }
+
+  setEmotesConfig(emotesConfig: EmotesConfig) {
     this.emotesConfig = emotesConfig;
-    this.frameMap = frameMap;
   }
 
   setHoldNextState(state: EmoteState) {
     this.holdNextState = state;
   }
 
-  // --- Image rendering ---
-
-  showImage(base64: string, force = false) {
-    if (!force && base64 === this.lastShownBase64) return;
-    this.lastShownBase64 = base64;
-
-    const caps = getCapabilities();
-    if (!caps.images) return;
-
-    const dimensions = getImageDimensions(base64, "image/png") ?? { widthPx: 510, heightPx: 510 };
-    const result = renderImage(base64, dimensions, {
-      maxWidthCells: this.config.size,
-      imageId: this.imageId,
-      moveCursor: false,
-    });
-
-    log(`showImage: result=${result !== null && result !== undefined}, tuiRef=${this.tuiRef !== null}, dims=${dimensions.widthPx}x${dimensions.heightPx}`);
-
-    if (result) {
-      this.imageSequence = result.sequence;
-      this.imageRows = result.rows;
-    } else {
-      this.imageSequence = null;
-      this.imageRows = 0;
-    }
-    this.tuiRef?.requestRender();
+  /** Get current rendered frame for the widget. */
+  getRenderedFrame(): RenderedFrame | null {
+    return this.renderer.getRenderedFrame();
   }
 
-  resetImageState() {
-    this.lastShownBase64 = null;
+  resetRenderCache() {
+    this.renderer.resetCache();
   }
 
-  deleteImage() {
-    process.stdout.write(deleteKittyImage(this.imageId));
-    this.imageSequence = null;
-  }
-
-  // --- Frame access ---
-
-  getFrame(state: EmoteState, filename: string): string | null {
-    const frameSet = this.frameMap.get(state);
-    if (!frameSet) return null;
-    return frameSet.base64Cache.get(filename) ?? null;
-  }
-
-  getRandomFrame(state: EmoteState): string | null {
-    const frameSet = this.frameMap.get(state);
-    if (!frameSet || frameSet.files.length === 0) return null;
-    const file = randomPick(frameSet.files);
-    return frameSet.base64Cache.get(file) ?? null;
-  }
-
-  private getTalkFrame(): string | null {
-    const frameSet = this.frameMap.get("talk");
-    if (!frameSet || frameSet.files.length === 0) return null;
-
-    if (this.emotesConfig.talk?.weights) {
-      const file = weightedRandomPick(this.emotesConfig.talk.weights);
-      return frameSet.base64Cache.get(file) ?? this.getRandomFrame("talk");
-    }
-    return this.getRandomFrame("talk");
-  }
-
-  private getTalkCloseFrame(): string | null {
-    const frameSet = this.frameMap.get("talk");
-    if (!frameSet) return null;
-    const closeFile = frameSet.files.find((f) => f.includes("close"));
-    if (closeFile) return frameSet.base64Cache.get(closeFile) ?? null;
-    return frameSet.base64Cache.get(frameSet.files[0]!) ?? null;
-  }
-
-  private getCycleFrame(state: EmoteState): string | null {
-    const frameSet = this.frameMap.get(state);
-    if (!frameSet || frameSet.files.length === 0) return null;
-    const file = frameSet.files[this.cycleIndex % frameSet.files.length]!;
-    return frameSet.base64Cache.get(file) ?? null;
+  disposeRenderer() {
+    this.renderer.dispose();
   }
 
   // --- Timer management ---
@@ -209,15 +126,13 @@ export class Animator {
   }
 
   private enterHi() {
-    const frame = this.getRandomFrame("hi");
-    if (frame) this.showImage(frame);
+    this.renderer.showRandomFrame("hi");
     this.holdTimer = setTimeout(() => this.transitionTo("idle"), this.config.holdDuration.hi);
   }
 
   enterIdle() {
     const defaultFile = this.emotesConfig.idle?.default ?? "idle.png";
-    const frame = this.getFrame("idle", defaultFile);
-    if (frame) this.showImage(frame);
+    this.renderer.showFrame("idle", defaultFile);
     this.scheduleBlink();
   }
 
@@ -232,27 +147,26 @@ export class Animator {
 
   private doBlink() {
     const blinkFile = this.emotesConfig.idle?.blink ?? "idle_blink.png";
-    const blinkFrame = this.getFrame("idle", blinkFile);
-    if (!blinkFrame) { this.scheduleBlink(); return; }
-
-    this.showImage(blinkFrame);
+    if (!this.renderer.showFrame("idle", blinkFile)) {
+      this.scheduleBlink();
+      return;
+    }
 
     const doubleBlink = Math.random() < 0.15;
     const blinkDuration = 150;
+    const defaultFile = this.emotesConfig.idle?.default ?? "idle.png";
 
     setTimeout(() => {
       if (this.currentState !== "idle") return;
-      const defaultFile = this.emotesConfig.idle?.default ?? "idle.png";
-      const defaultFrame = this.getFrame("idle", defaultFile);
-      if (defaultFrame) this.showImage(defaultFrame, true);
+      this.renderer.showFrame("idle", defaultFile, true);
 
       if (doubleBlink) {
         setTimeout(() => {
           if (this.currentState !== "idle") return;
-          this.showImage(blinkFrame, true);
+          this.renderer.showFrame("idle", blinkFile, true);
           setTimeout(() => {
             if (this.currentState !== "idle") return;
-            if (defaultFrame) this.showImage(defaultFrame, true);
+            this.renderer.showFrame("idle", defaultFile, true);
             this.scheduleBlink();
           }, blinkDuration);
         }, 100);
@@ -264,8 +178,7 @@ export class Animator {
 
   private enterThink() {
     const defaultFile = this.emotesConfig.think?.default ?? "think.png";
-    this.thinkBaseFrame = this.getFrame("think", defaultFile);
-    if (this.thinkBaseFrame) this.showImage(this.thinkBaseFrame);
+    this.renderer.showFrame("think", defaultFile);
     this.scheduleThinkSwap();
   }
 
@@ -280,14 +193,15 @@ export class Animator {
 
   private doThinkSwap() {
     const hardFile = this.emotesConfig.think?.hard ?? "think_hard.png";
-    const hardFrame = this.getFrame("think", hardFile);
-    if (!hardFrame) { this.scheduleThinkSwap(); return; }
+    if (!this.renderer.showFrame("think", hardFile, true)) {
+      this.scheduleThinkSwap();
+      return;
+    }
 
-    this.showImage(hardFrame, true);
-
+    const defaultFile = this.emotesConfig.think?.default ?? "think.png";
     setTimeout(() => {
       if (this.currentState !== "think") return;
-      if (this.thinkBaseFrame) this.showImage(this.thinkBaseFrame, true);
+      this.renderer.showFrame("think", defaultFile, true);
       this.scheduleThinkSwap();
     }, 800);
   }
@@ -298,17 +212,14 @@ export class Animator {
     this.lastTokenTime = Date.now();
     this.talkMouthClosed = false;
 
-    const frame = this.getTalkFrame();
-    if (frame) this.showImage(frame);
+    this.renderer.showTalkFrame(this.emotesConfig);
 
     this.talkTimer = setInterval(() => {
       if (this.currentState !== "talk") return;
       if (this.talkMouthClosed) {
-        const closeFrame = this.getTalkCloseFrame();
-        if (closeFrame) this.showImage(closeFrame);
+        this.renderer.showTalkCloseFrame();
       } else {
-        const f = this.getTalkFrame();
-        if (f) this.showImage(f);
+        this.renderer.showTalkFrame(this.emotesConfig);
       }
     }, this.config.talkTickMs);
   }
@@ -369,30 +280,26 @@ export class Animator {
   private enterCycle(state: EmoteState) {
     this.cycleIndex = 0;
     this.cycleDirection = 1;
-    const frame = this.getCycleFrame(state);
-    if (frame) this.showImage(frame);
+    this.renderer.showCycleFrame(state, 0);
 
-    const frameSet = this.frameMap.get(state);
-    if (!frameSet || frameSet.files.length <= 1) return;
+    const count = this.renderer.getCycleFrameCount(state);
+    if (count <= 1) return;
 
     this.cycleTimer = setInterval(() => {
       if (this.currentState !== state) return;
       this.cycleIndex += this.cycleDirection;
-      if (this.cycleIndex >= frameSet.files.length - 1) this.cycleDirection = -1;
+      if (this.cycleIndex >= count - 1) this.cycleDirection = -1;
       if (this.cycleIndex <= 0) this.cycleDirection = 1;
-      const f = this.getCycleFrame(state);
-      if (f) this.showImage(f);
+      this.renderer.showCycleFrame(state, this.cycleIndex);
     }, this.config.cycleMs);
   }
 
   private enterHold(state: EmoteState, duration: number, nextState: EmoteState = "idle") {
-    const frame = this.getRandomFrame(state);
-    if (frame) this.showImage(frame);
+    this.renderer.showRandomFrame(state);
     this.holdTimer = setTimeout(() => this.transitionTo(nextState), duration);
   }
 
   private enterCompact() {
-    const frame = this.getRandomFrame("compact");
-    if (frame) this.showImage(frame);
+    this.renderer.showRandomFrame("compact");
   }
 }

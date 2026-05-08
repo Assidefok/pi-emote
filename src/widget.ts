@@ -1,6 +1,7 @@
-import { visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
+import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
 import type { Config } from "./types.js";
 import type { Animator } from "./animator.js";
+import type { RenderedFrame } from "./renderer.js";
 import { log } from "./log.js";
 
 // --- Token formatting ---
@@ -60,6 +61,54 @@ function buildInfoLines(width: number, config: Config, ctxRef: any, pi: any, the
   });
 }
 
+// --- Render helpers ---
+
+function renderImageFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string, theme: any): string[] {
+  const sep = borderColor("│");
+  const leftMargin = " ";
+  const avatarPad = " ".repeat(config.size);
+  const lines: string[] = [];
+
+  for (let i = 0; i < frame.rows; i++) {
+    let line = "";
+    if (i === 0) {
+      line = leftMargin + frame.sequence + `${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+    } else {
+      line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+    }
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+function renderTextFrame(frame: RenderedFrame & { kind: "text" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string, theme: any): string[] {
+  const sep = borderColor("│");
+  const leftMargin = " ";
+  const avatarPad = " ".repeat(config.size);
+
+  // Place emote text on the 3rd row (index 2), vertically centered in a
+  // block tall enough to hold the info panel (min 4 rows to match image size).
+  const emoteLines = frame.lines;
+  const emoteRow = 2;
+  const rowCount = Math.max(emoteRow + emoteLines.length, infoLines.length, 4);
+  const lines: string[] = [];
+
+  for (let i = 0; i < rowCount; i++) {
+    const emoteIdx = i - emoteRow;
+    const emote = (emoteIdx >= 0 && emoteIdx < emoteLines.length) ? emoteLines[emoteIdx] : "";
+    const emoteWidth = visibleWidth(emote);
+    // Center the emote within config.size columns
+    const totalPad = config.size - emoteWidth;
+    const padLeft = totalPad > 0 ? " ".repeat(Math.floor(totalPad / 2)) : "";
+    const padRight = totalPad > 0 ? " ".repeat(Math.ceil(totalPad / 2)) : "";
+    const cell = emote ? `${padLeft}${emote}${padRight}` : avatarPad;
+    lines.push(`${leftMargin}${cell} ${sep} ${infoLines[i] ?? ""}`);
+  }
+
+  return lines;
+}
+
 // --- Widget factory ---
 
 export interface WidgetDeps {
@@ -72,50 +121,41 @@ export interface WidgetDeps {
 
 export function createWidgetFactory(deps: WidgetDeps) {
   return (_tui: any, theme: any) => {
-    deps.animator.tuiRef = _tui;
+    deps.animator.setTui(_tui);
     return {
       render(width: number): string[] {
         const { animator, config } = deps;
 
         if (width < config.hideBelow) return [];
-        if (animator.imageRows === 0) {
-          log(`render: imageRows=0, returning empty`);
+
+        const frame = animator.getRenderedFrame();
+        if (!frame) {
+          log(`render: no frame`);
           return [];
         }
 
-        log(`render: imageRows=${animator.imageRows}, imageSequence=${animator.imageSequence !== null}, set="${deps.getCurrentEmoteSet()}"`);
+        log(`render: kind=${frame.kind}, set="${deps.getCurrentEmoteSet()}"`);
 
         const thinkingLevel = deps.pi.getThinkingLevel?.() ?? "high";
         const borderColor = (theme as any).getThinkingBorderColor?.(thinkingLevel)
           ?? ((s: string) => theme.fg("border", s));
         const border = borderColor("─".repeat(width));
-        const sep = borderColor("│");
-        const leftMargin = " ";
-        const avatarPad = " ".repeat(config.size);
         const infoLines = buildInfoLines(width, config, deps.getCtxRef(), deps.pi, theme);
 
         const lines: string[] = [];
         lines.push(border);
 
-        for (let i = 0; i < animator.imageRows; i++) {
-          let line = "";
-          if (i === 0) {
-            line = leftMargin;
-            if (animator.imageSequence) {
-              line += animator.imageSequence;
-            }
-            line += `${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
-          } else {
-            line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
-          }
-          lines.push(line);
+        if (frame.kind === "image") {
+          lines.push(...renderImageFrame(frame, width, config, infoLines, borderColor, theme));
+        } else {
+          lines.push(...renderTextFrame(frame, width, config, infoLines, borderColor, theme));
         }
 
         return lines;
       },
       invalidate() {},
       dispose() {
-        deps.animator.tuiRef = null;
+        deps.animator.setTui(null);
       },
     };
   };
