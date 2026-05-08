@@ -55,6 +55,9 @@ export abstract class BaseImageRenderer implements Renderer {
     return this.currentFrame;
   }
 
+  /** Whether the cursor advances past the image after rendering. */
+  protected abstract cursorAdvances: boolean;
+
   /** Encode base64 image data into a terminal escape sequence. */
   protected abstract encode(base64: string, dims: ImageDims, rows: number): string | null;
 
@@ -62,7 +65,9 @@ export abstract class BaseImageRenderer implements Renderer {
   abstract dispose(): void;
 
   protected show(base64: string, force = false): boolean {
-    if (!force && base64 === this.lastShownBase64) return true;
+    // For protocols where cursor advances (iTerm2), always re-encode to produce
+    // a unique sequence — prevents the TUI diff engine from skipping the line.
+    if (!force && !this.cursorAdvances && base64 === this.lastShownBase64) return true;
     this.lastShownBase64 = base64;
 
     const dims = getImageDimensions(base64, "image/png") ?? { widthPx: 510, heightPx: 510 };
@@ -73,7 +78,7 @@ export abstract class BaseImageRenderer implements Renderer {
     log(`${this.constructor.name}.show: sequence=${sequence !== null}, dims=${dims.widthPx}x${dims.heightPx}, rows=${rows}`);
 
     if (sequence) {
-      this.currentFrame = { kind: "image", sequence, rows };
+      this.currentFrame = { kind: "image", sequence, rows, cursorAdvances: this.cursorAdvances };
     } else {
       this.currentFrame = null;
     }

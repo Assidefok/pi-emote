@@ -48,9 +48,7 @@ function buildInfoLines(width: number, config: Config, ctxRef: any, pi: any, the
     }
   } catch (_) { /* ignore if not available */ }
 
-  if (totalInput || totalOutput) {
-    lines.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`);
-  }
+  lines.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`);
 
   lines.push(`$${totalCost.toFixed(3)}`);
 
@@ -63,26 +61,60 @@ function buildInfoLines(width: number, config: Config, ctxRef: any, pi: any, the
 
 // --- Render helpers ---
 
-function renderImageFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string, theme: any): string[] {
+/**
+ * Kitty image layout: image sequence on row 0 (zero-width, cursor doesn't move),
+ * avatarPad fills the space. Info text beside the image on all rows.
+ */
+function renderKittyFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string): string[] {
   const sep = borderColor("│");
   const leftMargin = " ";
   const avatarPad = " ".repeat(config.size);
   const lines: string[] = [];
 
   for (let i = 0; i < frame.rows; i++) {
-    let line = "";
     if (i === 0) {
-      line = leftMargin + frame.sequence + `${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+      lines.push(leftMargin + frame.sequence + `${avatarPad} ${sep} ${infoLines[i] ?? ""}`);
     } else {
-      line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+      lines.push(`${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`);
     }
-    lines.push(line);
   }
 
   return lines;
 }
 
-function renderTextFrame(frame: RenderedFrame & { kind: "text" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string, theme: any): string[] {
+/**
+ * iTerm2 image layout — text first, image last.
+ *
+ * The TUI processes lines top-to-bottom, erasing each with \x1b[2K before
+ * writing. By placing the image on the LAST widget row with cursor-up
+ * positioning, the image is rendered AFTER all line clears. It extends
+ * downward over rows that already have text, filling the image area
+ * (cols 1–size) without being erased. Text in cols (size+1)+ is preserved.
+ *
+ * Layout: frame.rows total (frame.rows-1 text rows + 1 image row).
+ */
+function renderITermFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string): string[] {
+  const sep = borderColor("│");
+  const size = config.size;
+  const skipPad = `\x1b[${1 + size}C`;
+  const lines: string[] = [];
+
+  for (let i = 0; i < frame.rows; i++) {
+    if (i < frame.rows - 1) {
+      // Text rows: cursor-right past image area, then info
+      lines.push(`${skipPad} ${sep} ${infoLines[i] ?? ""}`);
+    } else {
+      // Last row: cursor-up to first text row, place image, then text
+      // After the image, cursor returns to this row (last image row, col 0).
+      const up = frame.rows > 1 ? `\x1b[${frame.rows - 1}A` : "";
+      lines.push(`${up}\x1b[1C${frame.sequence} ${sep} ${infoLines[i] ?? ""}`);
+    }
+  }
+
+  return lines;
+}
+
+function renderTextFrame(frame: RenderedFrame & { kind: "text" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string): string[] {
   const sep = borderColor("│");
   const leftMargin = " ";
   const avatarPad = " ".repeat(config.size);
@@ -146,9 +178,13 @@ export function createWidgetFactory(deps: WidgetDeps) {
         lines.push(border);
 
         if (frame.kind === "image") {
-          lines.push(...renderImageFrame(frame, width, config, infoLines, borderColor, theme));
+          if (frame.cursorAdvances) {
+            lines.push(...renderITermFrame(frame, width, config, infoLines, borderColor));
+          } else {
+            lines.push(...renderKittyFrame(frame, width, config, infoLines, borderColor));
+          }
         } else {
-          lines.push(...renderTextFrame(frame, width, config, infoLines, borderColor, theme));
+          lines.push(...renderTextFrame(frame, width, config, infoLines, borderColor));
         }
 
         return lines;

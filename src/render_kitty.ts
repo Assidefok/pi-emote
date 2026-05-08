@@ -8,6 +8,7 @@ import type { ImageDims } from "./render_image.js";
  */
 export class KittyRenderer extends BaseImageRenderer {
   readonly imageId: number;
+  protected cursorAdvances = false;
 
   constructor(size: number) {
     super(size);

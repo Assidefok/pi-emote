@@ -2,7 +2,7 @@
 
 All notable changes to pi-emote will be documented in this file.
 
-## [0.3.0] - 2026-05-08
+## [0.2.1] - 2026-05-08 (unreleased)
 
 ### Added
 - **ASCII fallback renderer** — terminals without image support (tmux, Alacritty, VSCode, etc.) now show text-based emotes instead of nothing.
@@ -22,6 +22,9 @@ All notable changes to pi-emote will be documented in this file.
 
 ### Fixed
 - Package imports updated from `@mariozechner/*` to `@earendil-works/*`.
+- iTerm2 inline image rendering: text-first/image-last approach prevents ghost images
+  and `\x1b[2K]` erasure artifacts. Correct aspect ratio via `preserveAspectRatio`.
+- I/O token stats (`↑input ↓output`) now shown even when zero.
 
 ## [0.2.0] - 2026-05-07
 

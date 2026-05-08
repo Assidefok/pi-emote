@@ -3,9 +3,14 @@ import type { TUI } from "@earendil-works/pi-tui";
 
 /**
  * A rendered frame — either an image sequence (Kitty/iTerm2) or plain text lines.
+ *
+ * For image frames:
+ * - `cursorAdvances`: whether the terminal cursor moves past the image after rendering.
+ *   Kitty with moveCursor=false does NOT advance; iTerm2 always advances.
+ *   The widget uses this to decide whether to add padding after the image sequence.
  */
 export type RenderedFrame =
-  | { kind: "image"; sequence: string; rows: number }
+  | { kind: "image"; sequence: string; rows: number; cursorAdvances: boolean }
   | { kind: "text"; lines: string[] };
 
 /**
