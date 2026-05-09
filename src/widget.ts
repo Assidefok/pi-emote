@@ -68,7 +68,7 @@ function buildInfoLines(width: number, config: Config, ctxRef: any, pi: any, the
 function renderKittyFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string): string[] {
   const sep = borderColor("│");
   const leftMargin = " ";
-  const avatarPad = " ".repeat(config.size + 1);
+  const avatarPad = " ".repeat(config.size);
   const lines: string[] = [];
 
   for (let i = 0; i < frame.rows; i++) {

@@ -2,6 +2,14 @@
 
 All notable changes to pi-emote will be documented in this file.
 
+## v0.2.2
+
+### Fixed
+- **Image row overflow** — row calculation now uses the same column count as the actual render, fixing avatar bleeding into content below.
+- **Vertical centering** — Kitty renderer uses pixel-level `Y` offset to center the image within its allocated rows, independent of font/cell dimensions.
+- **Consistent sizing** — image width, row calculation, and widget padding all use `config.size` consistently (removed off-by-one from `size + 1`).
+- Custom Kitty escape sequence builder replaces pi-tui's `encodeKitty`, enabling protocol params (`Y` offset) not exposed by the library.
+
 ## v0.2.1
 
 ### Added

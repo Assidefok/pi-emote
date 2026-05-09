@@ -59,7 +59,7 @@ export abstract class BaseImageRenderer implements Renderer {
   protected abstract cursorAdvances: boolean;
 
   /** Encode base64 image data into a terminal escape sequence. */
-  protected abstract encode(base64: string, dims: ImageDims, rows: number): string | null;
+  protected abstract encode(base64: string, dims: ImageDims, rows: number, yOffset: number): string | null;
 
   /** Clean up protocol-specific resources. */
   abstract dispose(): void;
@@ -71,11 +71,18 @@ export abstract class BaseImageRenderer implements Renderer {
     this.lastShownBase64 = base64;
 
     const dims = getImageDimensions(base64, "image/png") ?? { widthPx: 510, heightPx: 510 };
-    const rows = calculateImageRows(dims, this.size, getCellDimensions());
+    const cellDims = getCellDimensions();
+    const displayCols = this.size;
+    const rows = calculateImageRows(dims, displayCols, cellDims);
 
-    const sequence = this.encode(base64, dims, rows);
+    // Vertical centering: offset image down by half the unused pixel space
+    const scaledHeightPx = dims.heightPx * (displayCols * cellDims.widthPx / dims.widthPx);
+    const totalHeightPx = rows * cellDims.heightPx;
+    const yOffset = Math.max(0, Math.floor((totalHeightPx - scaledHeightPx) / 2));
 
-    log(`${this.constructor.name}.show: sequence=${sequence !== null}, dims=${dims.widthPx}x${dims.heightPx}, rows=${rows}`);
+    const sequence = this.encode(base64, dims, rows, yOffset);
+
+    log(`${this.constructor.name}.show: sequence=${sequence !== null}, dims=${dims.widthPx}x${dims.heightPx}, rows=${rows}, yOffset=${yOffset}`);
 
     if (sequence) {
       this.currentFrame = { kind: "image", sequence, rows, cursorAdvances: this.cursorAdvances };

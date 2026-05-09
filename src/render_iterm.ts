@@ -22,10 +22,10 @@ export class ITermRenderer extends BaseImageRenderer {
     super(size);
   }
 
-  protected encode(base64: string, _dims: ImageDims, rows: number): string | null {
+  protected encode(base64: string, _dims: ImageDims, rows: number, _yOffset: number): string | null {
     this.frameCounter++;
     return encodeITerm2(base64, {
-      width: this.size + 1,
+      width: this.size,
       height: "auto",
       preserveAspectRatio: true,
       name: `emote-${this.frameCounter}`,
