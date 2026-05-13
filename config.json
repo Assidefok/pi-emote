@@ -14,5 +14,12 @@
   "cycleMs": 500,
   "emotes": [
     { "model": "*", "emote-set": "default" }
+  ],
+  "terminals": [
+    { "match": "zellij", "render": "ascii" },
+    { "match": "tmux", "render": "ascii" },
+    { "match": "screen", "render": "ascii" },
+    { "match": "wezterm", "render": "iterm2" },
+    { "match": "ghostty", "render": "kitty" }
   ]
 }

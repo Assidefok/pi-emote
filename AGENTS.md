@@ -33,6 +33,13 @@ pi-emote uses layered configuration with deep merge. Higher-priority layers over
   "cycleMs": 500,
   "emotes": [
     { "model": "*", "emote-set": "default" }
+  ],
+  "terminals": [
+    { "match": "zellij", "render": "ascii" },
+    { "match": "tmux", "render": "ascii" },
+    { "match": "screen", "render": "ascii" },
+    { "match": "wezterm", "render": "iterm2" },
+    { "match": "ghostty", "render": "kitty" }
   ]
 }
 ```
@@ -47,6 +54,7 @@ pi-emote uses layered configuration with deep merge. Higher-priority layers over
 - **talkTickMs** — Interval (ms) between mouth frame changes during talk.
 - **cycleMs** — Frame cycle interval (ms) for read/write/tool animations.
 - **emotes** — Model-to-emote-set mapping (see below).
+- **terminals** — Terminal-to-renderer mapping (see below).
 
 You only need to include fields you want to override. Unspecified fields inherit from lower-priority layers.
 
@@ -84,6 +92,72 @@ The `emotes` array maps model IDs to emote sets using glob patterns:
 - **Last match wins** — order matters.
 - If multiple non-catch-all patterns match, a warning is logged.
 - The `emotes` array uses **replace** semantics: the highest-priority config layer that defines it wins entirely (no merging across layers).
+
+## Terminal Renderer Overrides
+
+The `terminals` array maps detected terminal/multiplexer names to specific image renderers. This patches cases where pi-tui's auto-detection is incorrect.
+
+### How It Works
+
+1. **Multiplexer detection** (checked first): env vars like `ZELLIJ`, `TMUX`, `TERM=screen*` identify multiplexers.
+2. **Terminal detection**: `TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WEZTERM_PANE`, etc. identify the terminal emulator.
+3. **Whitelist lookup**: the detected name is matched against the `terminals` array — first match wins.
+4. **Fallback**: if no match, pi-tui's `getCapabilities().images` is used.
+
+### Detected Names
+
+| Name | Detected via |
+|------|-------------|
+| `zellij` | `$ZELLIJ_SESSION_NAME` or `$ZELLIJ` |
+| `tmux` | `$TMUX` or `$TERM` starts with `tmux` |
+| `screen` | `$TERM` starts with `screen` |
+| `kitty` | `$KITTY_WINDOW_ID` or `$TERM_PROGRAM=kitty` |
+| `ghostty` | `$GHOSTTY_RESOURCES_DIR` or `$TERM_PROGRAM=ghostty` |
+| `wezterm` | `$WEZTERM_PANE` or `$TERM_PROGRAM=WezTerm` |
+| `iterm2` | `$ITERM_SESSION_ID` or `$TERM_PROGRAM=iTerm.app` |
+| `vscode` | `$TERM_PROGRAM=vscode` |
+| `alacritty` | `$TERM_PROGRAM=alacritty` |
+| `unknown` | Nothing matched |
+
+### Render Values
+
+- `"kitty"` — Kitty graphics protocol
+- `"iterm2"` — iTerm2 inline image protocol
+- `"ascii"` — Text-only fallback
+
+### Shipped Defaults
+
+```json
+{
+  "terminals": [
+    { "match": "zellij", "render": "ascii" },
+    { "match": "tmux", "render": "ascii" },
+    { "match": "screen", "render": "ascii" },
+    { "match": "wezterm", "render": "iterm2" },
+    { "match": "ghostty", "render": "kitty" }
+  ]
+}
+```
+
+Multiplexers default to ASCII because image protocol passthrough is unreliable. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
+
+### Override Example
+
+If you have Kitty image passthrough working in tmux:
+
+```json
+{
+  "terminals": [
+    { "match": "tmux", "render": "kitty" },
+    { "match": "zellij", "render": "ascii" },
+    { "match": "screen", "render": "ascii" },
+    { "match": "wezterm", "render": "iterm2" },
+    { "match": "ghostty", "render": "kitty" }
+  ]
+}
+```
+
+The `terminals` array uses **replace** semantics (same as `emotes`): include the full list when overriding.
 
 ### Emote Set Lookup
 

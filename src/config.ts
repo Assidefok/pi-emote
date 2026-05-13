@@ -41,6 +41,13 @@ const DEFAULTS: Config = {
   talkTickMs: 120,
   cycleMs: 500,
   emotes: [{ model: "*", "emote-set": "default" }],
+  terminals: [
+    { match: "zellij", render: "ascii" },
+    { match: "tmux", render: "ascii" },
+    { match: "screen", render: "ascii" },
+    { match: "wezterm", render: "iterm2" },
+    { match: "ghostty", render: "kitty" },
+  ],
 };
 
 export function loadLayeredConfig(extDir: string, cwd: string): Config {
@@ -60,13 +67,15 @@ export function loadLayeredConfig(extDir: string, cwd: string): Config {
   if (userConfig) merged = deepMerge(merged, userConfig);
   if (projectConfig) merged = deepMerge(merged, projectConfig);
 
-  // "emotes" array uses replace semantics — highest priority layer wins
-  if (projectConfig?.emotes) {
-    merged.emotes = projectConfig.emotes;
-  } else if (userConfig?.emotes) {
-    merged.emotes = userConfig.emotes;
-  } else if (extConfig?.emotes) {
-    merged.emotes = extConfig.emotes;
+  // "emotes" and "terminals" arrays use replace semantics — highest priority layer wins
+  for (const key of ["emotes", "terminals"] as const) {
+    if (projectConfig?.[key]) {
+      merged[key] = projectConfig[key];
+    } else if (userConfig?.[key]) {
+      merged[key] = userConfig[key];
+    } else if (extConfig?.[key]) {
+      merged[key] = extConfig[key];
+    }
   }
 
   return merged;

@@ -96,7 +96,7 @@ function renderKittyFrame(frame: RenderedFrame & { kind: "image" }, width: numbe
 function renderITermFrame(frame: RenderedFrame & { kind: "image" }, width: number, config: Config, infoLines: string[], borderColor: (s: string) => string): string[] {
   const sep = borderColor("│");
   const size = config.size;
-  const skipPad = `\x1b[${2 + size}C`;
+  const skipPad = `\x1b[${1 + size}C`;
   const lines: string[] = [];
 
   for (let i = 0; i < frame.rows; i++) {

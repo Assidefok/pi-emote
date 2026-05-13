@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getCapabilities } from "@earendil-works/pi-tui";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +12,7 @@ import { ITermRenderer } from "./render_iterm.js";
 import { AsciiRenderer } from "./render_ascii.js";
 import { Animator } from "./animator.js";
 import { createWidgetFactory } from "./widget.js";
+import { resolveRenderer } from "./terminal.js";
 
 function toolNameToState(toolName: string): EmoteState {
   switch (toolName) {
@@ -24,16 +24,16 @@ function toolNameToState(toolName: string): EmoteState {
 }
 
 function createRenderer(config: any): Renderer {
-  const caps = getCapabilities();
-  if (caps.images === "kitty") {
+  const render = resolveRenderer(config.terminals ?? []);
+  if (render === "kitty") {
     log(`createRenderer: using KittyRenderer`);
     return new KittyRenderer(config.size);
   }
-  if (caps.images === "iterm2") {
+  if (render === "iterm2") {
     log(`createRenderer: using ITermRenderer`);
     return new ITermRenderer(config.size);
   }
-  log(`createRenderer: using AsciiRenderer (no image support)`);
+  log(`createRenderer: using AsciiRenderer`);
   return new AsciiRenderer();
 }
 

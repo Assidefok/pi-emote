@@ -11,11 +11,17 @@ export interface Config {
   talkTickMs: number;
   cycleMs: number;
   emotes: EmoteMapping[];
+  terminals: TerminalMapping[];
 }
 
 export interface EmoteMapping {
   model: string;
   "emote-set": string;
+}
+
+export interface TerminalMapping {
+  match: string;
+  render: "kitty" | "iterm2" | "ascii";
 }
 
 export interface EmotesConfig {
