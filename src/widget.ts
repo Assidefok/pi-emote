@@ -69,11 +69,14 @@ function renderKittyFrame(frame: RenderedFrame & { kind: "image" }, width: numbe
   const sep = borderColor("│");
   const leftMargin = " ";
   const avatarPad = " ".repeat(config.size);
+  const avatarSkip = `\x1b[${config.size}C`;
+  const useSkip = frame.padMode === "skip";
   const lines: string[] = [];
 
   for (let i = 0; i < frame.rows; i++) {
     if (i === 0) {
-      lines.push(leftMargin + frame.sequence + `${avatarPad} ${sep} ${infoLines[i] ?? ""}`);
+      const pad = useSkip ? avatarSkip : avatarPad;
+      lines.push(leftMargin + frame.sequence + `${pad} ${sep} ${infoLines[i] ?? ""}`);
     } else {
       lines.push(`${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`);
     }

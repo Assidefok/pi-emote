@@ -1,8 +1,11 @@
 import { getCapabilities } from "@earendil-works/pi-tui";
-import type { TerminalMapping } from "./types.js";
+import type { TerminalMapping, ResolvedRenderer } from "./types.js";
+import { checkTmuxPassthrough, detectOuterTerminal } from "./tmux.js";
 import { log } from "./log.js";
 
-type RenderKind = "kitty" | "iterm2" | "ascii";
+type Protocol = "kitty" | "iterm2" | "ascii";
+
+const MULTIPLEXERS = new Set(["tmux", "screen", "zellij"]);
 
 /**
  * Detect the terminal or multiplexer name from environment variables.
@@ -32,26 +35,135 @@ export function detectTerminalName(): string {
 /**
  * Resolve which renderer to use.
  *
- * 1. Detect terminal name from env vars.
- * 2. Look up in the terminals whitelist — if matched, use its render value.
- * 3. No match — fall back to pi-tui's getCapabilities().images.
- *
- * Returns "kitty" | "iterm2" | "ascii".
+ * Returns a ResolvedRenderer with:
+ * - protocol: the image protocol to use
+ * - multiplexer: which multiplexer we're inside (null if direct)
+ * - warning: optional user-facing warning message
+ * - warningLevel: "warning" (actionable) or "info" (informational)
  */
-export function resolveRenderer(terminals: TerminalMapping[]): RenderKind {
+export function resolveRenderer(
+  terminals: TerminalMapping[],
+  userConfiguredTerminals: Set<string>,
+): ResolvedRenderer {
   const name = detectTerminalName();
   log(`terminal: detected "${name}"`);
 
-  for (const entry of terminals) {
-    if (entry.match === name) {
-      log(`terminal: whitelist match "${name}" → render "${entry.render}"`);
-      return entry.render;
-    }
+  if (MULTIPLEXERS.has(name)) {
+    return resolveMultiplexer(name, terminals, userConfiguredTerminals);
+  }
+
+  return resolveDirect(name, terminals);
+}
+
+/**
+ * Resolve renderer for a multiplexer session.
+ */
+function resolveMultiplexer(
+  name: string,
+  terminals: TerminalMapping[],
+  userConfiguredTerminals: Set<string>,
+): ResolvedRenderer {
+  const multiplexer = name as "tmux" | "screen" | "zellij";
+  const base: Pick<ResolvedRenderer, "multiplexer" | "warningLevel"> = {
+    multiplexer,
+    warningLevel: "warning",
+  };
+
+  // Find the terminal entry for this multiplexer
+  const entry = terminals.find((e) => e.match === name);
+  const render = entry?.render ?? "auto";
+  const isUserConfigured = userConfiguredTerminals.has(name);
+
+  // User explicitly picked a concrete renderer — trust them
+  if (isUserConfigured && render !== "auto") {
+    log(`terminal: user configured "${name}" → "${render}"`);
+    return { ...base, protocol: render, warning: null };
+  }
+
+  // Auto-detection path (default or explicit "auto")
+  if (name === "tmux") {
+    return resolveTmux(base);
+  }
+
+  // zellij and screen — not supported yet
+  const label = name === "zellij" ? "zellij" : "screen";
+  log(`terminal: ${label} detected, image passthrough not supported`);
+  return {
+    ...base,
+    protocol: "ascii",
+    warningLevel: "info",
+    warning: isUserConfigured
+      ? null
+      : `[pi-emote] ${label} detected. Image passthrough not supported... yet! Defaulting to ASCII.`,
+  };
+}
+
+/**
+ * Resolve renderer for tmux auto-detection.
+ */
+function resolveTmux(
+  base: Pick<ResolvedRenderer, "multiplexer" | "warningLevel">,
+): ResolvedRenderer {
+  // Check if passthrough is enabled
+  if (!checkTmuxPassthrough()) {
+    log("terminal: tmux passthrough not enabled");
+    return {
+      ...base,
+      protocol: "ascii",
+      warning:
+        "[pi-emote] tmux detected. Add 'set -g allow-passthrough on' and 'set -ga update-environment TERM_PROGRAM' to tmux.conf to enable image avatar. Defaulting to ASCII.",
+    };
+  }
+
+  // Passthrough enabled — detect outer terminal
+  const outer = detectOuterTerminal();
+  log(`terminal: tmux passthrough enabled, outer protocol → "${outer}"`);
+
+  if (outer === "ascii") {
+    return {
+      ...base,
+      protocol: "ascii",
+      warning:
+        "[pi-emote] tmux passthrough enabled but could not detect outer terminal. Defaulting to ASCII.",
+    };
+  }
+
+  return { ...base, protocol: outer, warning: null };
+}
+
+/**
+ * Resolve renderer for a direct (non-multiplexer) terminal.
+ */
+function resolveDirect(
+  name: string,
+  terminals: TerminalMapping[],
+): ResolvedRenderer {
+  const base: ResolvedRenderer = {
+    protocol: "ascii",
+    multiplexer: null,
+    warning: null,
+    warningLevel: "warning",
+  };
+
+  // Check whitelist
+  const entry = terminals.find((e) => e.match === name);
+  if (entry) {
+    const render = entry.render === "auto" ? detectDirectProtocol() : entry.render;
+    log(`terminal: whitelist match "${name}" → render "${render}"`);
+    return { ...base, protocol: render };
   }
 
   // No whitelist match — fall back to pi-tui capabilities
   const caps = getCapabilities();
-  const fallback: RenderKind = caps.images ?? "ascii";
+  const fallback: Protocol = caps.images ?? "ascii";
   log(`terminal: no whitelist match for "${name}", using pi-tui capabilities → "${fallback}"`);
-  return fallback;
+  return { ...base, protocol: fallback };
+}
+
+/**
+ * Detect image protocol for a direct terminal using pi-tui capabilities.
+ */
+function detectDirectProtocol(): Protocol {
+  const caps = getCapabilities();
+  return caps.images ?? "ascii";
 }

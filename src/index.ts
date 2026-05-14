@@ -2,13 +2,15 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { EmoteState } from "./types.js";
+import type { EmoteState, ResolvedRenderer } from "./types.js";
 import type { Renderer } from "./renderer.js";
 import { log, setDebug } from "./log.js";
 import { loadLayeredConfig } from "./config.js";
 import { resolveEmoteSet, findEmoteSetDir, loadEmotesConfig } from "./emotes.js";
 import { KittyRenderer } from "./render_kitty.js";
+import { TmuxKittyRenderer } from "./render_tmux_kitty.js";
 import { ITermRenderer } from "./render_iterm.js";
+import { TmuxITermRenderer } from "./render_tmux_iterm.js";
 import { AsciiRenderer } from "./render_ascii.js";
 import { Animator } from "./animator.js";
 import { createWidgetFactory } from "./widget.js";
@@ -23,15 +25,23 @@ function toolNameToState(toolName: string): EmoteState {
   }
 }
 
-function createRenderer(config: any): Renderer {
-  const render = resolveRenderer(config.terminals ?? []);
-  if (render === "kitty") {
+function createRendererFromResolved(resolved: ResolvedRenderer, size: number): Renderer {
+  const { protocol, multiplexer } = resolved;
+  if (protocol === "kitty") {
+    if (multiplexer === "tmux") {
+      log(`createRenderer: using TmuxKittyRenderer`);
+      return new TmuxKittyRenderer(size);
+    }
     log(`createRenderer: using KittyRenderer`);
-    return new KittyRenderer(config.size);
+    return new KittyRenderer(size);
   }
-  if (render === "iterm2") {
+  if (protocol === "iterm2") {
+    if (multiplexer === "tmux") {
+      log(`createRenderer: using TmuxITermRenderer`);
+      return new TmuxITermRenderer(size);
+    }
     log(`createRenderer: using ITermRenderer`);
-    return new ITermRenderer(config.size);
+    return new ITermRenderer(size);
   }
   log(`createRenderer: using AsciiRenderer`);
   return new AsciiRenderer();
@@ -42,7 +52,7 @@ export default function (pi: ExtensionAPI) {
   const extDir = dirname(__dirname);
 
   let cwd = process.cwd();
-  let config = loadLayeredConfig(extDir, cwd);
+  let { config, userConfiguredTerminals } = loadLayeredConfig(extDir, cwd);
   setDebug(config.debug);
 
   if (!config.enabled) return;
@@ -51,7 +61,8 @@ export default function (pi: ExtensionAPI) {
   let currentEmoteSet = "default";
   let ctxRef: any = null;
   let widgetActive = false;
-  let renderer = createRenderer(config);
+  let lastResolved = resolveRenderer(config.terminals, userConfiguredTerminals);
+  let renderer = createRendererFromResolved(lastResolved, config.size);
 
   const animator = new Animator(config, renderer);
 
@@ -70,7 +81,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     // Non-ascii set: ensure we're using the capability-based renderer
-    const detected = createRenderer(config);
+    const detected = createRendererFromResolved(lastResolved, config.size);
     if (renderer.constructor !== detected.constructor) {
       renderer = detected;
       animator.setRenderer(renderer);
@@ -106,15 +117,18 @@ export default function (pi: ExtensionAPI) {
 
     animator.clearAllTimers();
     cwd = ctx.cwd;
-    config = loadLayeredConfig(extDir, cwd);
+    ({ config, userConfiguredTerminals } = loadLayeredConfig(extDir, cwd));
     setDebug(config.debug);
     animator.updateConfig(config);
 
     // Re-create renderer in case terminal capabilities changed
-    renderer = createRenderer(config);
+    lastResolved = resolveRenderer(config.terminals, userConfiguredTerminals);
+    renderer = createRendererFromResolved(lastResolved, config.size);
     animator.setRenderer(renderer);
 
-    if (renderer instanceof AsciiRenderer) {
+    if (lastResolved.warning) {
+      ctx.ui.notify(lastResolved.warning, lastResolved.warningLevel);
+    } else if (renderer instanceof AsciiRenderer) {
       ctx.ui.notify("[pi-emote] No image protocol detected \u2014 using ASCII emotes.", "warning");
     }
 

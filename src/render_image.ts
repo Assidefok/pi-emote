@@ -58,6 +58,9 @@ export abstract class BaseImageRenderer implements Renderer {
   /** Whether the cursor advances past the image after rendering. */
   protected abstract cursorAdvances: boolean;
 
+  /** Padding mode for the widget: "spaces" (default) or "skip" (cursor-right). */
+  protected padMode: "spaces" | "skip" = "spaces";
+
   /** Encode base64 image data into a terminal escape sequence. */
   protected abstract encode(base64: string, dims: ImageDims, rows: number, yOffset: number): string | null;
 
@@ -85,7 +88,7 @@ export abstract class BaseImageRenderer implements Renderer {
     log(`${this.constructor.name}.show: sequence=${sequence !== null}, dims=${dims.widthPx}x${dims.heightPx}, rows=${rows}, yOffset=${yOffset}`);
 
     if (sequence) {
-      this.currentFrame = { kind: "image", sequence, rows, cursorAdvances: this.cursorAdvances };
+      this.currentFrame = { kind: "image", sequence, rows, cursorAdvances: this.cursorAdvances, padMode: this.padMode };
     } else {
       this.currentFrame = null;
     }

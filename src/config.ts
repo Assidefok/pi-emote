@@ -2,6 +2,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Config, EmoteMapping, TerminalMapping } from "./types.js";
 
+export interface ConfigResult {
+  config: Config;
+  userConfiguredTerminals: Set<string>;
+}
+
 function deepMerge(target: any, source: any): any {
   const result = { ...target };
   for (const key of Object.keys(source)) {
@@ -42,9 +47,9 @@ const DEFAULTS: Config = {
   cycleMs: 500,
   emotes: [{ model: "*", "emote-set": "default" }],
   terminals: [
-    { match: "zellij", render: "ascii" },
-    { match: "tmux", render: "ascii" },
-    { match: "screen", render: "ascii" },
+    { match: "zellij", render: "auto" },
+    { match: "tmux", render: "auto" },
+    { match: "screen", render: "auto" },
     { match: "wezterm", render: "iterm2" },
     { match: "ghostty", render: "kitty" },
   ],
@@ -79,7 +84,7 @@ function mergeTerminals(...layers: (TerminalMapping[] | undefined)[]): TerminalM
   return result.size > 0 ? [...result.values()] : DEFAULTS.terminals;
 }
 
-export function loadLayeredConfig(extDir: string, cwd: string): Config {
+export function loadLayeredConfig(extDir: string, cwd: string): ConfigResult {
   // Layer 1: Extension config (lowest priority)
   const extConfig = loadJsonFile(join(extDir, "config.json"));
 
@@ -112,5 +117,14 @@ export function loadLayeredConfig(extDir: string, cwd: string): Config {
     projectConfig?.terminals,
   );
 
-  return merged;
+  // Track which terminal match keys were explicitly set by user or project config
+  const userConfiguredTerminals = new Set<string>();
+  for (const entry of userConfig?.terminals ?? []) {
+    userConfiguredTerminals.add(entry.match);
+  }
+  for (const entry of projectConfig?.terminals ?? []) {
+    userConfiguredTerminals.add(entry.match);
+  }
+
+  return { config: merged, userConfiguredTerminals };
 }

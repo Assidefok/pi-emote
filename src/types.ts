@@ -21,7 +21,14 @@ export interface EmoteMapping {
 
 export interface TerminalMapping {
   match: string;
-  render: "kitty" | "iterm2" | "ascii";
+  render: "kitty" | "iterm2" | "ascii" | "auto";
+}
+
+export interface ResolvedRenderer {
+  protocol: "kitty" | "iterm2" | "ascii";
+  multiplexer: "tmux" | "screen" | "zellij" | null;
+  warning: string | null;
+  warningLevel: "warning" | "info";
 }
 
 export interface EmotesConfig {

@@ -72,7 +72,64 @@ Image protocol auto-detection doesn't always get it right (especially in multipl
 }
 ```
 
-Render values: `"kitty"`, `"iterm2"`, `"ascii"`. Only include terminals you want to override — the rest keep their defaults. See `AGENTS.md` for the full list of detected terminal names.
+Render values: `"kitty"`, `"iterm2"`, `"ascii"`, `"auto"`. Only include terminals you want to override — the rest keep their defaults. See `AGENTS.md` for the full list of detected terminal names.
+
+## Multiplexers
+
+pi-emote can render image avatars through **tmux** using DCS passthrough. When tmux is detected, pi-emote auto-detects the outer terminal and picks the right image protocol.
+
+### tmux Setup
+
+Add these to your `tmux.conf`:
+
+```bash
+# Required — allow image sequences to pass through to the outer terminal
+set -g allow-passthrough on
+
+# Required — detect outer terminal when attaching from a different terminal
+set -ga update-environment TERM
+set -ga update-environment TERM_PROGRAM
+
+# Recommended — reduces flicker during animation
+set -sg escape-time 0
+```
+
+Then restart tmux completely:
+
+```bash
+tmux kill-server && tmux
+```
+
+Without `allow-passthrough`, pi-emote defaults to ASCII and shows a one-time warning with setup instructions.
+
+### Supported Outer Terminals
+
+| Outer Terminal | Protocol | Status |
+|----------------|----------|--------|
+| Ghostty | Kitty | ⚠️ Works, slight flicker during frame changes |
+| kitty | Kitty | ⚠️ Works, slight flicker during frame changes |
+| iTerm2 | iTerm2 | ⚠️ Works, some rendering artifacts (occasional flicker on row 0 during rapid state changes) |
+| WezTerm | iTerm2 | Not verified yet |
+
+The outer terminal is detected via `tmux show-environment TERM_PROGRAM`, which reflects the currently attached terminal.
+
+### Other Multiplexers
+
+**zellij** and **screen** are not yet supported and default to ASCII.
+
+### Manual Override
+
+If auto-detection doesn't work for your setup, force a specific renderer:
+
+```json
+{
+  "terminals": [
+    { "match": "tmux", "render": "kitty" }
+  ]
+}
+```
+
+This skips all auto-detection and passthrough checks — make sure your tmux is configured correctly.
 
 ## Custom Emotes
 

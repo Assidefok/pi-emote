@@ -124,22 +124,49 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
 - `"kitty"` — Kitty graphics protocol
 - `"iterm2"` — iTerm2 inline image protocol
 - `"ascii"` — Text-only fallback
+- `"auto"` — Auto-detect (default for multiplexers): checks passthrough support and detects outer terminal
 
 ### Shipped Defaults
 
 ```json
 {
   "terminals": [
-    { "match": "zellij", "render": "ascii" },
-    { "match": "tmux", "render": "ascii" },
-    { "match": "screen", "render": "ascii" },
+    { "match": "zellij", "render": "auto" },
+    { "match": "tmux", "render": "auto" },
+    { "match": "screen", "render": "auto" },
     { "match": "wezterm", "render": "iterm2" },
     { "match": "ghostty", "render": "kitty" }
   ]
 }
 ```
 
-Multiplexers default to ASCII because image protocol passthrough is unreliable. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
+Multiplexers default to `"auto"`, which checks for passthrough support and detects the outer terminal. If passthrough is not available, falls back to ASCII with a helpful warning. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
+
+### tmux Requirements
+
+For image rendering through tmux, users need these settings in `tmux.conf`:
+
+```bash
+# Required — allow image sequences to pass through to the outer terminal
+set -g allow-passthrough on
+
+# Required — detect outer terminal when attaching from a different terminal
+set -ga update-environment TERM
+set -ga update-environment TERM_PROGRAM
+
+# Recommended — reduces flicker during animation
+set -sg escape-time 0
+```
+
+After changes, tmux must be fully restarted (`tmux kill-server && tmux`).
+
+The auto-detection flow for tmux:
+1. Check `allow-passthrough` is `on` or `all` via `tmux show-options -g`
+2. Detect outer terminal via `tmux show-environment TERM_PROGRAM` (session-level, falls back to global)
+3. Map outer terminal to protocol: ghostty/kitty → kitty, iTerm.app → iterm2, WezTerm → iterm2
+4. Use `TmuxKittyRenderer` or `TmuxITermRenderer` (DCS passthrough wrappers)
+
+If the user explicitly configures a concrete render value (`"kitty"`, `"iterm2"`, `"ascii"`) for tmux, all auto-detection and warnings are skipped.
 
 ### Override Example
 
@@ -152,6 +179,8 @@ If you have Kitty image passthrough working in tmux:
   ]
 }
 ```
+
+Setting a concrete value (`"kitty"`, `"iterm2"`, `"ascii"`) skips auto-detection and suppresses warnings. Use `"auto"` to explicitly opt into auto-detection.
 
 The `terminals` array uses **merge-by-key** semantics: entries are merged by `match` key across all config layers (extension → user → project). Higher-priority layers replace entries with the same key, or append new ones. You only need to include the entries you want to override or add.
 
