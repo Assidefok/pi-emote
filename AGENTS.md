@@ -36,7 +36,7 @@ pi-emote uses layered configuration with deep merge. Higher-priority layers over
   ],
   "terminals": [
     { "match": "zellij", "render": "ascii" },
-    { "match": "tmux", "render": "ascii" },
+    { "match": "tmux", "render": "auto" },
     { "match": "screen", "render": "ascii" },
     { "match": "wezterm", "render": "iterm2" },
     { "match": "ghostty", "render": "kitty" }
@@ -133,7 +133,7 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
 {
   "terminals": [
     { "match": "zellij", "render": "ascii" },
-    { "match": "tmux", "render": "ascii" },
+    { "match": "tmux", "render": "auto" },
     { "match": "screen", "render": "ascii" },
     { "match": "wezterm", "render": "iterm2" },
     { "match": "ghostty", "render": "kitty" }
@@ -141,7 +141,7 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
 }
 ```
 
-Multiplexers default to `"ascii"`. Users can opt in to experimental tmux image rendering by setting `"auto"` or a concrete renderer in their config. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
+tmux defaults to `"auto"` — auto-detects the outer terminal. Ghostty and kitty get `kitty-unicode` (pane-safe image rendering); other outer terminals fall back to ASCII with a helpful message. Other multiplexers (zellij, screen) default to `"ascii"`. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
 
 ### tmux Requirements
 
@@ -171,12 +171,12 @@ If the user explicitly configures a concrete render value (`"kitty"`, `"kitty-un
 
 ### Override Example
 
-To opt in to tmux image rendering:
+To force ASCII for tmux (disable image auto-detection):
 
 ```json
 {
   "terminals": [
-    { "match": "tmux", "render": "auto" }
+    { "match": "tmux", "render": "ascii" }
   ]
 }
 ```
@@ -191,7 +191,7 @@ Or force a specific renderer:
 }
 ```
 
-Setting a concrete value skips auto-detection and suppresses warnings. Use `"auto"` to explicitly opt into auto-detection.
+Setting a concrete value skips auto-detection and suppresses warnings.
 
 The `terminals` array uses **merge-by-key** semantics: entries are merged by `match` key across all config layers (extension → user → project). Higher-priority layers replace entries with the same key, or append new ones. You only need to include the entries you want to override or add.
 

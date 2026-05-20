@@ -62,7 +62,7 @@ See `config.json` in the extension root for all defaults.
 
 ## Multiplexers
 
-pi-emote can render image avatars through **tmux** using DCS passthrough. When tmux is detected, pi-emote auto-detects the outer terminal and picks the right image protocol. **These features are experimental and opt-in.**
+pi-emote can render image avatars through **tmux** using DCS passthrough. When tmux is detected, pi-emote auto-detects the outer terminal and picks the right image protocol.
 
 ### tmux Setup
 
@@ -92,8 +92,8 @@ Without `allow-passthrough`, pi-emote defaults to ASCII and shows a one-time war
 
 | Outer Terminal | Protocol | Status |
 |----------------|----------|--------|
-| Ghostty | kitty-unicode | ⚠️ Experimental, pane-safe, auto-detected |
-| kitty | kitty-unicode | ⚠️ Experimental, pane-safe, auto-detected |
+| Ghostty | kitty-unicode | ✅ Stable, pane-safe, auto-detected |
+| kitty | kitty-unicode | ⚠️ Untested, pane-safe, auto-detected |
 | iTerm2 | iterm2 | ⚠️ Experimental, opt-in only (pane bleed in multi-pane layouts) |
 | WezTerm | iterm2 | ⚠️ Experimental, opt-in only (not verified) |
 
@@ -133,7 +133,7 @@ Available render values for tmux: `"auto"`, `"kitty-unicode"`, `"kitty"`, `"iter
 - `"kitty-unicode"` — pane-safe Unicode placeholders (Ghostty, kitty)
 - `"kitty"` — classic DCS passthrough (single-pane only, experimental)
 - `"iterm2"` — iTerm2 DCS passthrough (single-pane only, experimental)
-- `"ascii"` — text fallback (default)
+- `"ascii"` — text fallback
 
 ## Custom Emotes
 

@@ -48,7 +48,7 @@ const DEFAULTS: Config = {
   emotes: [{ model: "*", "emote-set": "default" }],
   terminals: [
     { match: "zellij", render: "ascii" },
-    { match: "tmux", render: "ascii" },
+    { match: "tmux", render: "auto" },
     { match: "screen", render: "ascii" },
     { match: "wezterm", render: "iterm2" },
     { match: "ghostty", render: "kitty" },
