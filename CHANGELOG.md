@@ -2,6 +2,18 @@
 
 All notable changes to pi-emote will be documented in this file.
 
+## v0.2.7
+
+### Added
+- **Multiple ASCII emote sets** — ASCII sets now use the same resolution/lookup machinery as image sets. Each set is a directory with an `ascii.yaml` file.
+- **`ascii-bear` emote set** — bear kaomoji (`ʕ•̫͡•ʔ`) by [@LCorleone](https://github.com/LCorleone).
+- **Auto-switch to AsciiRenderer** — sets with `ascii.yaml` but no image frames automatically use the ASCII renderer regardless of terminal capabilities.
+
+### Changed
+- **tmux default changed to `"auto"`** — tmux + Ghostty now gets `kitty-unicode` images automatically without user configuration. Other outer terminals still fall back to ASCII.
+- `emotes/ascii/fallback.yaml` renamed to `emotes/ascii/ascii.yaml`.
+- Removed `setName === "ascii"` special case — ASCII sets are now resolved through the standard emote set lookup.
+
 ## v0.2.6
 
 ### Added
