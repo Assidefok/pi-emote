@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync } from "node:fs";
 
 import type { EmoteState, ResolvedRenderer } from "./types.js";
 import type { Renderer } from "./renderer.js";
@@ -16,6 +17,20 @@ import { AsciiRenderer } from "./render_ascii.js";
 import { Animator } from "./animator.js";
 import { createWidgetFactory } from "./widget.js";
 import { resolveRenderer } from "./terminal.js";
+
+const IMAGE_STATES = ["hi", "idle", "think", "talk", "read", "write", "tool", "success", "failure", "compact"];
+
+/** Check if a set directory contains any image frames (PNG files in state subdirs). */
+function hasImageFrames(setDir: string): boolean {
+  for (const state of IMAGE_STATES) {
+    const stateDir = join(setDir, state);
+    if (existsSync(stateDir)) {
+      const files = readdirSync(stateDir).filter((f) => f.endsWith(".png"));
+      if (files.length > 0) return true;
+    }
+  }
+  return false;
+}
 
 function toolNameToState(toolName: string): EmoteState {
   switch (toolName) {
@@ -74,14 +89,24 @@ export default function (pi: ExtensionAPI) {
   function loadEmoteSet(setName: string) {
     currentEmoteSet = setName;
 
-    // Ensure we're using the capability-based renderer
-    const detected = createRendererFromResolved(lastResolved, config.size);
-    if (renderer.constructor !== detected.constructor) {
-      renderer = detected;
-      animator.setRenderer(renderer);
+    const setDir = findEmoteSetDir(setName, extDir, cwd);
+    const isAsciiOnly = existsSync(join(setDir, "ascii.yaml")) && !hasImageFrames(setDir);
+
+    if (isAsciiOnly) {
+      // ASCII-only set — use AsciiRenderer regardless of terminal
+      if (!(renderer instanceof AsciiRenderer)) {
+        renderer = new AsciiRenderer();
+        animator.setRenderer(renderer);
+      }
+    } else {
+      // Ensure we're using the capability-based renderer
+      const detected = createRendererFromResolved(lastResolved, config.size);
+      if (renderer.constructor !== detected.constructor) {
+        renderer = detected;
+        animator.setRenderer(renderer);
+      }
     }
 
-    const setDir = findEmoteSetDir(setName, extDir, cwd);
     const emotesConfig = loadEmotesConfig(setDir);
     renderer.loadFrames(setDir, extDir);
     animator.setEmotesConfig(emotesConfig);
