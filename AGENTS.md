@@ -39,7 +39,9 @@ pi-emote uses layered configuration with deep merge. Higher-priority layers over
     { "match": "tmux", "render": "auto" },
     { "match": "screen", "render": "ascii" },
     { "match": "wezterm", "render": "iterm2" },
-    { "match": "ghostty", "render": "kitty" }
+    { "match": "ghostty", "render": "kitty" },
+    { "match": "windows", "render": "sixel" },
+    { "match": "powershell", "render": "sixel" }
   ]
 }
 ```
@@ -117,6 +119,8 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
 | `iterm2` | `$ITERM_SESSION_ID` or `$TERM_PROGRAM=iTerm.app` |
 | `vscode` | `$TERM_PROGRAM=vscode` |
 | `alacritty` | `$TERM_PROGRAM=alacritty` |
+| `windows` | `$WT_SESSION` or `$TERM_PROGRAM=WindowsTerminal` |
+| `powershell` | `$SHELL` ends with `pwsh`/`powershell`, or `$PSModulePath` contains `PowerShell` |
 | `unknown` | Nothing matched |
 
 ### Render Values
@@ -124,6 +128,7 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
 - `"kitty"` — Kitty graphics protocol (direct passthrough, experimental in tmux)
 - `"kitty-unicode"` — Kitty Unicode placeholders (pane-safe, experimental in tmux)
 - `"iterm2"` — iTerm2 inline image protocol (experimental in tmux)
+- `"sixel"` — SIXEL protocol (Windows Terminal, PowerShell, mlterm, etc.)
 - `"ascii"` — Text-only fallback
 - `"auto"` — Auto-detect: checks passthrough support and detects outer terminal
 
@@ -136,12 +141,14 @@ The `terminals` array maps detected terminal/multiplexer names to specific image
     { "match": "tmux", "render": "auto" },
     { "match": "screen", "render": "ascii" },
     { "match": "wezterm", "render": "iterm2" },
-    { "match": "ghostty", "render": "kitty" }
+    { "match": "ghostty", "render": "kitty" },
+    { "match": "windows", "render": "sixel" },
+    { "match": "powershell", "render": "sixel" }
   ]
 }
 ```
 
-tmux defaults to `"auto"` — auto-detects the outer terminal. Ghostty and kitty get `kitty-unicode` (pane-safe image rendering); other outer terminals fall back to ASCII with a helpful message. Other multiplexers (zellij, screen) default to `"ascii"`. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
+tmux defaults to `"auto"` — auto-detects the outer terminal. Ghostty and kitty get `kitty-unicode` (pane-safe image rendering); other outer terminals fall back to ASCII with a helpful message. Other multiplexers (zellij, screen) default to `"ascii"`. WezTerm uses iTerm2 protocol (more reliable than Kitty on WezTerm). Windows Terminal and PowerShell default to `"sixel"` (native SIXEL support). Terminals not listed (e.g., kitty, iterm2) fall through to pi-tui auto-detection.
 
 ### tmux Requirements
 
@@ -167,7 +174,9 @@ The auto-detection flow for tmux (when render is `"auto"`):
 3. Map outer terminal to protocol: ghostty/kitty → kitty-unicode (pane-safe), iTerm.app/WezTerm → ascii (no pane-safe renderer available)
 4. Use `TmuxKittyUnicodeRenderer` for Ghostty/kitty; all others fall back to ASCII
 
-If the user explicitly configures a concrete render value (`"kitty"`, `"kitty-unicode"`, `"iterm2"`, `"ascii"`) for tmux, all auto-detection and warnings are skipped.
+If the user explicitly configures a concrete render value (`"kitty"`, `"kitty-unicode"`, `"iterm2"`, `"sixel"`, `"ascii"`) for tmux, all auto-detection and warnings are skipped.
+
+> **Note:** SIXEL does not support tmux passthrough. If you need image rendering through tmux on Windows/macOS, use kitty or iTerm2 protocols instead.
 
 ### Override Example
 
@@ -194,6 +203,17 @@ Or force a specific renderer:
 Setting a concrete value skips auto-detection and suppresses warnings.
 
 The `terminals` array uses **merge-by-key** semantics: entries are merged by `match` key across all config layers (extension → user → project). Higher-priority layers replace entries with the same key, or append new ones. You only need to include the entries you want to override or add.
+
+### Windows Terminal + PowerShell
+
+Windows Terminal (1.19+) and PowerShell on Windows/macOS/Linux are supported via the **SIXEL** protocol. pi-emote auto-detects these shells and uses SixelRenderer by default — no configuration required.
+
+**Requirements:**
+- Windows Terminal 1.19+ (for Windows Terminal users)
+- PowerShell 5.1+ or PowerShell Core 7+
+- No tmux in between — SIXEL does not support tmux passthrough
+
+If SIXEL rendering fails, pi-emote falls back to ASCII automatically.
 
 ### Emote Set Lookup
 

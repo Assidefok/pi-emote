@@ -27,11 +27,17 @@
     "LICENSE"
   ],
   "pi": {
-    "extensions": ["./src/index.ts"],
+    "extensions": [
+      "./src/index.ts"
+    ],
     "image": "https://raw.githubusercontent.com/cgxeiji/pi-emote/main/pi-emote-demo.gif"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "sixel": "^0.16.0"
   }
 }

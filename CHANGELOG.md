@@ -2,7 +2,18 @@
 
 All notable changes to pi-emote will be documented in this file.
 
-## v0.2.7
+## v0.2.8
+
+### Added
+- **SixelRenderer** — new image protocol renderer using [node-sixel](https://github.com/jerch/node-sixel) for SIXEL-encoded image output.
+- **SIXEL protocol support** — images rendered via DEC SIXEL escape sequences, enabling pi-emote on Windows Terminal and PowerShell.
+- **Windows Terminal detection** — auto-detects `WT_SESSION` / `TERM_PROGRAM=WindowsTerminal`, routes to SixelRenderer.
+- **PowerShell detection** — auto-detects pwsh and Windows PowerShell via `$SHELL` and `$PSModulePath`, routes to SixelRenderer.
+- **`"sixel"` render value** — available in `terminals` config for manual override.
+
+### Dependencies
+- Added `sixel` (^0.16.0) — pure JS SIXEL encoder with WebAssembly.
+- Added `pngjs` (^7.0.0) — PNG decoder for converting base64 frames to RGBA pixels.
 
 ### Added
 - **Multiple ASCII emote sets** — ASCII sets now use the same resolution/lookup machinery as image sets. Each set is a directory with an `ascii.yaml` file.

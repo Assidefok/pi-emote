@@ -3,7 +3,7 @@ import type { TerminalMapping, ResolvedRenderer } from "./types.js";
 import { checkTmuxPassthrough, detectOuterTerminal } from "./tmux.js";
 import { log } from "./log.js";
 
-type Protocol = "kitty" | "kitty-unicode" | "iterm2" | "ascii";
+type Protocol = "kitty" | "kitty-unicode" | "iterm2" | "sixel" | "ascii";
 
 const MULTIPLEXERS = new Set(["tmux", "screen", "zellij"]);
 
@@ -28,6 +28,24 @@ export function detectTerminalName(): string {
   if (process.env.ITERM_SESSION_ID || termProgram === "iterm.app") return "iterm2";
   if (termProgram === "vscode") return "vscode";
   if (termProgram === "alacritty") return "alacritty";
+
+  // --- Windows Terminal (SIXEL-capable) ---
+  // Windows Terminal 1.19+ supports SIXEL natively
+  if (process.env.WT_SESSION || termProgram === "windowsterminal") {
+    return "windows";
+  }
+
+  // --- PowerShell / PowerShell Core ---
+  // Detect pwsh (PowerShell 7+) and powershell (Windows PowerShell 5.x)
+  const shell = process.env.SHELL ?? "";
+  const pmodulePath = process.env.PSModulePath ?? "";
+  if (shell.endsWith("pwsh") || shell.endsWith("powershell") || shell.endsWith("powershell.exe")) {
+    return "powershell";
+  }
+  // PSModulePath is set on all PowerShell editions on Windows
+  if (pmodulePath && (pmodulePath.includes("WindowsPowerShell") || pmodulePath.includes("PowerShell"))) {
+    return "powershell";
+  }
 
   return "unknown";
 }

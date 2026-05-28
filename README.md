@@ -6,7 +6,7 @@ Animated pixel-art emote that lives in the top-right corner of your pi TUI sessi
 
 ![pi-emote demo](pi-emote-demo.gif)
 
-Supports Kitty, iTerm2, and ASCII rendering.
+Supports Kitty, iTerm2, SIXEL (Windows Terminal, PowerShell), and ASCII rendering.
 
 ## Gallery
 
@@ -123,6 +123,26 @@ iTerm2 and WezTerm use DCS passthrough for the iTerm2 image protocol. This works
 
 **zellij** and **screen** are not yet supported and default to ASCII.
 
+### Windows Terminal + PowerShell
+
+Windows Terminal (1.19+) and PowerShell on Windows/macOS/Linux are supported via the **SIXEL** protocol. SIXEL rendering is auto-detected and enabled by default:
+
+```json
+{
+  "terminals": [
+    { "match": "windows", "render": "sixel" },
+    { "match": "powershell", "render": "sixel" }
+  ]
+}
+```
+
+Requirements:
+- **Windows Terminal 1.19+** (for Windows Terminal users)
+- **PowerShell 5.1+ or 7+** (pwsh)
+- No tmux in between — SIXEL does not support tmux passthrough
+
+If SIXEL rendering doesn't work, pi-emote falls back to ASCII automatically.
+
 ### Manual Override
 
 Force a specific renderer:
@@ -135,12 +155,13 @@ Force a specific renderer:
 }
 ```
 
-Available render values for tmux: `"auto"`, `"kitty-unicode"`, `"kitty"`, `"iterm2"`, `"ascii"`.
+Available render values for tmux: `"auto"`, `"kitty-unicode"`, `"kitty"`, `"iterm2"`, `"sixel"`, `"ascii"`.
 
 - `"auto"` — detect outer terminal; uses kitty-unicode for Ghostty/kitty, ASCII for others
 - `"kitty-unicode"` — pane-safe Unicode placeholders (Ghostty, kitty)
 - `"kitty"` — classic DCS passthrough (single-pane only, experimental)
 - `"iterm2"` — iTerm2 DCS passthrough (single-pane only, experimental)
+- `"sixel"` — SIXEL protocol (Windows Terminal, PowerShell, mlterm, etc.)
 - `"ascii"` — text fallback
 
 ## Custom Emotes
